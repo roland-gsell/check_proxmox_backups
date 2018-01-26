@@ -1,0 +1,29 @@
+import ConfigParser
+
+self.config = ConfigParser.ConfigParser()
+self.config.optionxform = str
+self.config.read(config_file)
+
+self.uri = self.config.get('global', 'uri')
+self.base = self.config.get('global', 'base')
+self.user_base = self.config.get('users', 'base')
+self.group_base = self.config.get('groups', 'base')
+self.binddn = self.config.get('global', 'binddn')
+self.bindpw = self.config.get('global', 'bindpw')
+
+Config example:
+
+[global]
+uri = ldap://10.2.2.50:389
+binddn = cn=Admin,o=FIRMA
+bindpw = pa$$w0rd
+base = o=firma
+
+[users]
+base = ou=DB,o=firma
+ignore = ['ou=Database,o=FIRMA', 'ou=GASTZUGAENGE,ou=DB,o=FIRMA']
+filter = (&(objectClass=Person)(objectClass=inetOrgPerson)(uid=*))
+
+[groups]
+base = ou=GRUPPEN,ou=DB,o=firma
+filter = (&(objectclass=groupOfNames)(cn=*))
