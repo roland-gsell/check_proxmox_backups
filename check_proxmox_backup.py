@@ -17,6 +17,7 @@ from datetime import datetime, date, timedelta
 import fnmatch
 import os
 from optparse import OptionParser
+import ConfigParser
 import string
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -134,14 +135,14 @@ user = ''
 password = ''
 
 if options.apifile != '':
-    with open(options.apifile, 'r') as f:
-        for line in f:
-            if line.startswith('hostaddress'):
-                host = line[12:-1]
-            if line.startswith('user'):
-                user = line[5:-1]
-            if line.startswith('pass'):
-                password = line[5:-1]
+    config = ConfigParser.ConfigParser()
+    config.optionxform = str
+    config.read(options.apifile)
+
+    host = config.get('global', 'host')
+    user = config.get('global', 'user')
+    password = config.get('global', 'password')
+
     if user == '' or password == '' or host == '':
         print 'UNKNOWN - Problem with api conf file'
         raise SystemExit("UNKNOWN")
