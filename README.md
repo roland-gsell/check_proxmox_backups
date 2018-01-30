@@ -4,12 +4,13 @@ Icinga/Nagios-Check to test all Proxmox backups in one check
 There were already bash scripts available, which can do the same thing for a single backup. However, if you add a new VM and forget to add another check in your monitoring environment, this new backup won't be checked.  
 Also changes in the backup schedule will not be taken into account with an ordinary bash script solution.
 
-So, basically this check will test all log file auf all VMs, which are listed in the backup schedule of Proxmox.  
+So, basically this check will test all log file of all VMs, which are listed in the backup schedule of Proxmox.  
 You need to setup this schedule still by yourself, though. ;-)  
-If any changed are done inside of Proxmox (new VMs, removal of old VMs, backup schedule update, ..) the check doesn't need to be updated. It will automatically do the right thing, the next time it runs.
+If any changes are done inside of Proxmox (new VMs, removal of old VMs, backup schedule update, ..) the check doesn't need to be updated. It will automatically do the right thing the next time it runs.
 
-This check is designed to run on the proxmox server itself.  
-You can change the option in the config file however (e.g. host = 192.168.0.1), but in this case you need to make sure, that the machine which executes the check need to have access to the directory where the backups are. You can use a NFS share for example. At the moment the mount point must be exactly the same as on the proxmox server.
+This check is designed to run on the proxmox server itself.
+
+You can change the option in the config file however (e.g. host = 192.168.0.1), but in this case you need to make sure that the machine which executes the check need to have access to the directory where the backups are. You can use a NFS share for example. At the moment the mount point must be exactly the same as on the proxmox server.
 
 THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM “AS IS” WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
