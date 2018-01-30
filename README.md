@@ -32,9 +32,9 @@ By default it will be installed in:
 
 If you want to change that, edit the install script accordingly.
 
-When you execute the install script, it will copy the python program to it's final location, setting the debug mode to False.
+When you execute the install script, it will copy the python program to its final location, setting the debug mode to False.
 
-The next thing you need to do in Icinga or Nagios is set up the check in you monitoring environment.  
+The next thing you need to do in Icinga or Nagios is set up the check in your monitoring environment.  
 Here are some examples of the command and the check definition:
 
 
