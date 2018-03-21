@@ -19,13 +19,27 @@ import os
 from optparse import OptionParser
 import ConfigParser
 import string
+import sys
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-UNKNOWN = -1
-OK = 0
-WARNING = 1
-CRITICAL = 2
+
+class Nagios:
+    ok = (0, 'OK')
+    warning = (1, 'WARNING')
+    critical = (2, 'CRITICAL')
+    unknown = (3, 'UNKNOWN')
+
+
+nagios = Nagios()
+
+
+def nagiosExit(exit_code, msg=None):
+    """Exit script with a str() message and an integer 'nagios_code', which is a sys.exit level."""
+    if msg:
+        print(exit_code[0], exit_code[1] + " - " + str(msg))
+    sys.exit(exit_code[0])
+
 
 parser = OptionParser()
 parser.add_option("-u",
@@ -139,29 +153,29 @@ if options.apifile != '':
     config.optionxform = str
     config.read(options.apifile)
 
-    host = config.get('global', 'host')
-    user = config.get('global', 'user')
-    password = config.get('global', 'password')
-
-    if user == '' or password == '' or host == '':
-        print 'UNKNOWN - Problem with api conf file'
-        raise SystemExit("UNKNOWN")
+    try:
+        host = config.get('global', 'host')
+        user = config.get('global', 'user')
+        password = config.get('global', 'password')
+    except Exception:
+        message = 'Problem with api conf file'
+        nagiosExit(nagios.unknown, str(message))
 else:
     if options.user == '':
-        print 'UNKNOWN - No username given, use -u'
-        raise SystemExit("UNKNOWN")
+        message = 'No username given, use -u'
+        nagiosExit(nagios.unknown, str(message))
     else:
         user = options.user
 
     if options.password == '':
-        print 'UNKNOWN - No Password given, use -p'
-        raise SystemExit("UNKNOWN")
+        message = 'No Password given, use -p'
+        nagiosExit(nagios.unknown, str(message))
     else:
         password = options.password
 
     if options.host == '':
-        print 'UNKNOWN - No host given, use -s'
-        raise SystemExit("UNKNOWN")
+        message = 'No host given, use -s'
+        nagiosExit(nagios.unknown, str(message))
     else:
         host = options.host
 
@@ -378,14 +392,14 @@ for key, value in nagios_response.iteritems():
         new_nagios_response[key] = value
 
 if UNKNOWN_STATUS:
-    print 'UNKNOWN - Cannot read backup status - %s' % (new_nagios_response)
-    raise SystemExit()
+    message = 'Cannot read backup status - %s' % (new_nagios_response)
+    nagiosExit(nagios.unknown, str(message))
 elif CRITICAL_STATUS:
-    print 'CRITICAL - At least one backup did not work - %s' % (new_nagios_response)
-    raise SystemExit()
+    message = 'At least one backup did not work - %s' % (new_nagios_response)
+    nagiosExit(nagios.critical, str(message))
 elif WARNING_STATUS:
-    print 'WARNING - At least one backup is not finished yet or 1 day older than expected - %s' % (new_nagios_response)
-    raise SystemExit()
+    message = 'At least one backup is not finished yet or 1 day older than expected - %s' % (new_nagios_response)
+    nagiosExit(nagios.warning, str(message))
 else:
-    print 'OK - %s' % (new_nagios_response)
-    raise SystemExit()
+    message = '%s' % (new_nagios_response)
+    nagiosExit(nagios.ok, str(message))
