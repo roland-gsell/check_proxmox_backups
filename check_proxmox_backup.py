@@ -329,7 +329,7 @@ for i in schedule['data']:
             # didn't find anything
             # So let's find any backup which is newer
             date_to_check_again = date_to_check + timedelta(days=1)
-            while date_to_check_again < date.today():
+            while date_to_check_again <= date.today():
                 # print(type(date_to_check_again))
                 printdebug('Checking the next day: ' + str(date_to_check_again))
                 date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
