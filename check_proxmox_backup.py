@@ -104,28 +104,28 @@ def readlogfile(path, vmid, date, oneday2old=False):
         if fnmatch.fnmatch(filename, 'vzdump-qemu-' + str(vmid) + '-' + date + '*.log'):
             printdebug('Checking Filename: ' + filename)
             try:
-                f = open(path + '/' + filename, 'r')
-                found = True
-                if oneday2old:
-                    printdebug("WARNING - Found backup, but 1 day older than expected: " + str(vmid))
-                printdebug('Found and could open: ' + filename)
-                try:
-                    lastline = f.readlines()[-1]
-                    printdebug(lastline)
-                    if 'INFO: Finished Backup' in lastline:
-                        printdebug("OK")
-                        backupok = True
-                        code = 'ok'
-                    elif 'INFO: status:' in lastline:
-                        if not backupok:
-                            code = 'running'
-                            printdebug("Backup currently running")
-                    else:
-                        if not backupok:
-                            code = 'nobak'
-                            printdebug("Error: " + str(vmid))
-                finally:
-                    f.close()
+                with open(path + '/' + filename, 'r') as f:
+                    found = True
+                    if oneday2old:
+                        printdebug("WARNING - Found backup, but 1 day older than expected: " + str(vmid))
+                    printdebug('Found and could open: ' + filename)
+                    try:
+                        lastline = f.readlines()[-1]
+                        printdebug(lastline)
+                        if 'INFO: Finished Backup' in lastline:
+                            printdebug("OK")
+                            backupok = True
+                            code = 'ok'
+                        elif 'INFO: status:' in lastline:
+                            if not backupok:
+                                code = 'running'
+                                printdebug("Backup currently running")
+                        else:
+                            if not backupok:
+                                code = 'nobak'
+                                printdebug("Error: " + str(vmid))
+                    except Exception:
+                        printdebug("Cant read file")
             except Exception:
                 printdebug("Cant open file")
     return code, found
@@ -325,9 +325,9 @@ for i in schedule['data']:
                 else:
                     found = False
 
-        if not found:
-            # didn't find anything
-            # So let's find any backup which is newer
+        if not found or vmid_status[int(vmid)] != 'ok':
+            # didn't find anything or found a broken one
+            # So let's find any backup which is newer and worked
             date_to_check_again = date_to_check + timedelta(days=1)
             while date_to_check_again <= date.today():
                 # print(type(date_to_check_again))
