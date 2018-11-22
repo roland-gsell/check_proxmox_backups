@@ -20,6 +20,7 @@ from optparse import OptionParser
 import ConfigParser
 import string
 import sys
+import heapq
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -67,13 +68,17 @@ parser.add_option("-f",
                   dest="apifile",
                   default='',
                   help="Path to API Configuration File")
+parser.add_option("-d",
+                  "--debug",
+                  dest="debug",
+                  default=False,
+                  action="store_true",
+                  help="Turn on debug mode")
 (options, args) = parser.parse_args()
-
-debug = True
 
 
 def printdebug(string):
-    if debug:
+    if options.debug:
         print(string)
 
 
@@ -96,18 +101,25 @@ def getweekday(weekdaynumber):
     return weekday
 
 
+# errorcodes = ['nobak', 'failed', 'running']
+# okcodes = ['ok', '2old']
+errorcodes = ['nobak', 'failed', 'running', '2old']
+okcodes = ['ok']
+
+
 def readlogfile(path, vmid, date, oneday2old=False):
     found = False
     backupok = False
     code = ''
+    printdebug('Checking this pattern: ' + path + '/' + 'vzdump-*' + str(vmid) + '-' + date + '*.log')
     for filename in os.listdir(path):
-        if fnmatch.fnmatch(filename, 'vzdump-qemu-' + str(vmid) + '-' + date + '*.log'):
+        if fnmatch.fnmatch(filename, 'vzdump-*' + str(vmid) + '-' + date + '*.log'):
             printdebug('Checking Filename: ' + filename)
             try:
                 with open(path + '/' + filename, 'r') as f:
                     found = True
                     if oneday2old:
-                        printdebug("WARNING - Found backup, but 1 day older than expected: " + str(vmid))
+                        printdebug("WARNING - Found backup, but older than expected: " + str(vmid))
                     printdebug('Found and could open: ' + filename)
                     try:
                         lastline = f.readlines()[-1]
@@ -116,6 +128,10 @@ def readlogfile(path, vmid, date, oneday2old=False):
                             printdebug("OK")
                             backupok = True
                             code = 'ok'
+                        elif 'ERROR: ' in lastline:
+                            if not backupok:
+                                code = 'failed'
+                                printdebug("Backup failed")
                         elif 'INFO: status:' in lastline:
                             if not backupok:
                                 code = 'running'
@@ -289,7 +305,17 @@ for i in schedule['data']:
         printdebug("Date to check:     " + str(date_to_check))
     else:
         printdebug("Today no backup should be done.")
-        days_to_go_back = 7 - max(nrdays) + weekdaynumber_today
+        # printdebug("nrdays              :  " + str(nrdays))
+        # printdebug("weekdaynumber_today :  " + str(weekdaynumber_today))
+        # printdebug("weekday_today       :  " + str(weekday_today))
+        second_largest_day = heapq.nlargest(2, nrdays)[-1]
+        largest_day = max(nrdays)
+
+        days_to_go_back = 7 - largest_day + weekdaynumber_today
+        # The largest day ist today, but we found that today no backup should be done (yet)
+        # So, we take the second largest day instead
+        if days_to_go_back == 7:
+            days_to_go_back = 7 - second_largest_day + weekdaynumber_today
         if days_to_go_back >= 7:
             days_to_go_back -= 7
         printdebug("Days to go back:  " + str(days_to_go_back))
@@ -302,7 +328,18 @@ for i in schedule['data']:
     else:
         path = options.path
     for (vmid, status) in vmid_status.iteritems():
+        # get the VM ids of the specific schedule:
+        vmids_schedule = []
+        for sched in i['vmid'].split(','):
+            vmids_schedule.append(int(sched))
+
+        # and check only those
+        if vmid not in vmids_schedule:
+            continue
+
+        printdebug(" ")
         printdebug("Checking VM-ID: " + str(vmid))
+        printdebug("Checking Path : " + str(path))
         date_underscore = string.replace(str(date_to_check), '-', '_')
         printdebug('Date with underscores: ' + date_underscore)
 
@@ -314,18 +351,20 @@ for i in schedule['data']:
 
         if not found:
             # No luck?
-            # Lets see if we find a backup, which is one day older and return a warning instead
-            date_to_check_again = date_to_check - timedelta(days=1)
-            date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
+            # Lets see if we find a backup, which is older and return a warning instead
+            for j in range(1, 8):
+                date_to_check_again = date_to_check - timedelta(days=j)
+                date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
 
-            if vmid_status[int(vmid)] != 'ok':
-                vmid_status[int(vmid)], found = readlogfile(path, vmid, date_underscore_again, True)
-                if vmid_status[int(vmid)] == 'ok':
-                    vmid_status[int(vmid)] = '1day2old'
-                else:
-                    found = False
+                if vmid_status[int(vmid)] != 'ok':
+                    vmid_status[int(vmid)], found = readlogfile(path, vmid, date_underscore_again, True)
+                    if vmid_status[int(vmid)] == 'ok':
+                        vmid_status[int(vmid)] = '2old'
+                        break
+                    else:
+                        found = False
 
-        if not found or vmid_status[int(vmid)] != 'ok':
+        if not found or vmid_status[int(vmid)] not in okcodes:
             # didn't find anything or found a broken one
             # So let's find any backup which is newer and worked
             date_to_check_again = date_to_check + timedelta(days=1)
@@ -335,12 +374,16 @@ for i in schedule['data']:
                 date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
 
                 if vmid_status[int(vmid)] != 'ok':
+                    code_from_last_day = vmid_status[int(vmid)]
                     vmid_status[int(vmid)], found = readlogfile(path, vmid, date_underscore_again)
+                # Didnt find a working backup on the next day, so keep the old status
+                if vmid_status[int(vmid)] != 'ok':
+                    vmid_status[int(vmid)] = code_from_last_day
                 date_to_check_again = date_to_check_again + timedelta(days=1)
 
             # I tried my best, but no logfile here :(
             if not found:
-                if vmid_status[int(vmid)] != 'ok':
+                if vmid_status[int(vmid)] != 'ok' and vmid_status[int(vmid)] not in errorcodes:
                     vmid_status[int(vmid)] = 'nolog'
                     printdebug("Error - no log file found: " + str(vmid))
 
@@ -355,12 +398,16 @@ UNKNOWN_STATUS = False
 WARNING_STATUS = False
 CRITICAL_STATUS = False
 
-nagios_response = {'ok': '', 'nobak': '', 'nolog': '', 'running': '', 'nochk': '', '1day2old': ''}
+nagios_response = {'ok': '', 'failed': '', 'nobak': '', 'nolog': '', 'running': '', 'nochk': '', '2old': ''}
 for vmid, status in vmid_status.iteritems():
     printdebug(str(vmid) + status)
     vmid = str(vmid)
     if status == 'ok':
         nagios_response['ok'] += vmid + ','
+    elif status == 'failed':
+        OK_STATUS = False
+        CRITICAL_STATUS = True
+        nagios_response['failed'] += vmid + ','
     elif status == 'nobak':
         OK_STATUS = False
         CRITICAL_STATUS = True
@@ -373,10 +420,10 @@ for vmid, status in vmid_status.iteritems():
         OK_STATUS = False
         WARNING_STATUS = True
         nagios_response['running'] += vmid + ','
-    elif status == '1day2old':
+    elif status == '2old':
         OK_STATUS = False
         WARNING_STATUS = True
-        nagios_response['1day2old'] += vmid + ','
+        nagios_response['2old'] += vmid + ','
     elif status == 'nochk':
         OK_STATUS = False
         CRITICAL_STATUS = True
@@ -398,7 +445,7 @@ elif CRITICAL_STATUS:
     message = 'At least one backup did not work - %s' % (new_nagios_response)
     nagiosExit(nagios.critical, str(message))
 elif WARNING_STATUS:
-    message = 'At least one backup is not finished yet or 1 day older than expected - %s' % (new_nagios_response)
+    message = 'At least one backup is not finished yet or older than expected - %s' % (new_nagios_response)
     nagiosExit(nagios.warning, str(message))
 else:
     message = '%s' % (new_nagios_response)
