@@ -210,11 +210,14 @@ printdebug("Schedule(s):")
 printdebug(str(schedule))
 resources = prox.getClusterResources()
 
+backup_all = False
+
 vmid_status = {}
 for i in schedule['data']:
     if i['enabled'] == '1':
         try:
             if i['all'] == 1:
+                backup_all = True
                 for j in resources['data']:
                     try:
                         vmid_status[int(j['vmid'])] = 'nochk'
@@ -328,14 +331,16 @@ for i in schedule['data']:
     else:
         path = options.path
     for (vmid, status) in vmid_status.iteritems():
-        # get the VM ids of the specific schedule:
-        vmids_schedule = []
-        for sched in i['vmid'].split(','):
-            vmids_schedule.append(int(sched))
+        if not backup_all:
+            # get the VM ids of the specific schedule:
+            vmids_schedule = []
 
-        # and check only those
-        if vmid not in vmids_schedule:
-            continue
+            for sched in i['vmid'].split(','):
+                vmids_schedule.append(int(sched))
+
+            # and check only those
+            if vmid not in vmids_schedule:
+                continue
 
         printdebug(" ")
         printdebug("Checking VM-ID: " + str(vmid))
