@@ -20,7 +20,6 @@ from optparse import OptionParser
 import ConfigParser
 import string
 import sys
-import heapq
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -101,8 +100,6 @@ def getweekday(weekdaynumber):
     return weekday
 
 
-# errorcodes = ['nobak', 'failed', 'running']
-# okcodes = ['ok', '2old']
 errorcodes = ['nobak', 'failed', 'running', '2old']
 okcodes = ['ok']
 
@@ -150,15 +147,11 @@ def readlogfile(path, vmid, date, oneday2old=False):
 today = date.today()
 datetimetoday = datetime.today()
 
-# These values will be altered later, depending if a backup should be done today or not
-weekdaynumber = today.weekday()
-weekday = getweekday(weekdaynumber)
-
 # These values won't be altered later on
-weekdaynumber_today = weekdaynumber
-weekday_today = weekday
+weekdaynumber_today = today.weekday()
+weekday_today = getweekday(weekdaynumber_today)
 
-printdebug("Today      : " + weekday)
+printdebug("Today      : " + weekday_today)
 
 host = ''
 user = ''
@@ -246,6 +239,8 @@ for i in schedule['data']:
 
 # Iterate over all schedules
 for i in schedule['data']:
+    weekdaynumber = today.weekday()
+    weekday = getweekday(weekdaynumber)
     printdebug("------------")
     printdebug("Storage         : " + i['storage'])
     printdebug("Weekdays        : " + i['dow'])
@@ -300,30 +295,27 @@ for i in schedule['data']:
     # Debug: Add a non-existent VM
     # vmids.append(200)
 
-    # printdebug("VM-IDs          : " + str(vmids))
     printdebug("Days of backup  : " + str(nrdays))
-    printdebug("Highest day     : " + str(max(nrdays)))
     if weekday in i['dow']:
         printdebug("Weekday found: " + weekday)
         printdebug("Date to check:     " + str(date_to_check))
     else:
         printdebug("Today no backup should be done.")
-        # printdebug("nrdays              :  " + str(nrdays))
-        # printdebug("weekdaynumber_today :  " + str(weekdaynumber_today))
-        # printdebug("weekday_today       :  " + str(weekday_today))
-        second_largest_day = heapq.nlargest(2, nrdays)[-1]
-        largest_day = max(nrdays)
+        days_to_go_back = 1
+        for _ in range(7):
+            # going back up to 7 times to find the first matching day to do the backup
+            days_to_go_back += 1
+            weekdaynumber -= 1
+            if weekdaynumber < 0:
+                weekdaynumber = 6
+            weekday = getweekday(weekdaynumber)
+            if weekday in i['dow']:
+                printdebug("Weekday found: " + weekday)
+                date_to_check = date.today() - timedelta(days=days_to_go_back)
+                printdebug("Days to go back:  " + str(days_to_go_back))
+                printdebug("Date to check:     " + str(date_to_check))
+                break
 
-        days_to_go_back = 7 - largest_day + weekdaynumber_today
-        # The largest day ist today, but we found that today no backup should be done (yet)
-        # So, we take the second largest day instead
-        if days_to_go_back == 7:
-            days_to_go_back = 7 - second_largest_day + weekdaynumber_today
-        if days_to_go_back >= 7:
-            days_to_go_back -= 7
-        printdebug("Days to go back:  " + str(days_to_go_back))
-        date_to_check = date.today() - timedelta(days=days_to_go_back)
-        printdebug("Date to check:    " + str(date_to_check))
     storage = prox.getStorageConfig(i['storage'])
     printdebug("Storage-Config: " + str(storage))
     if options.path == '':
