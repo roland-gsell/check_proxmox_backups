@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Tool for checking all VM-Backups for Proxmox at once.
 
@@ -17,7 +18,7 @@ from datetime import datetime, date, timedelta
 import fnmatch
 import os
 from optparse import OptionParser
-import ConfigParser
+import configparser
 import string
 import sys
 
@@ -158,7 +159,7 @@ user = ''
 password = ''
 
 if options.apifile != '':
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.optionxform = str
     config.read(options.apifile)
 
@@ -322,7 +323,7 @@ for i in schedule['data']:
         path = storage['data']['path'] + '/dump'
     else:
         path = options.path
-    for (vmid, status) in vmid_status.iteritems():
+    for (vmid, status) in vmid_status.items():
         if not backup_all:
             # get the VM ids of the specific schedule:
             vmids_schedule = []
@@ -337,7 +338,7 @@ for i in schedule['data']:
         printdebug(" ")
         printdebug("Checking VM-ID: " + str(vmid))
         printdebug("Checking Path : " + str(path))
-        date_underscore = string.replace(str(date_to_check), '-', '_')
+        date_underscore = (str(date_to_check)).replace( '-', '_')
         printdebug('Date with underscores: ' + date_underscore)
 
         if vmid_status[int(vmid)] != 'ok':
@@ -351,7 +352,7 @@ for i in schedule['data']:
             # Lets see if we find a backup, which is older and return a warning instead
             for j in range(1, 8):
                 date_to_check_again = date_to_check - timedelta(days=j)
-                date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
+                date_underscore_again = (str(date_to_check_again)).replace('-', '_')
 
                 if vmid_status[int(vmid)] != 'ok':
                     vmid_status[int(vmid)], found = readlogfile(path, vmid, date_underscore_again, True)
@@ -396,7 +397,7 @@ WARNING_STATUS = False
 CRITICAL_STATUS = False
 
 nagios_response = {'ok': '', 'failed': '', 'nobak': '', 'nolog': '', 'running': '', 'nochk': '', '2old': ''}
-for vmid, status in vmid_status.iteritems():
+for vmid, status in vmid_status.items():
     printdebug(str(vmid) + status)
     vmid = str(vmid)
     if status == 'ok':
@@ -431,7 +432,7 @@ for vmid, status in vmid_status.iteritems():
 
 # clean up unused key-value-pairs
 new_nagios_response = {}
-for key, value in nagios_response.iteritems():
+for key, value in nagios_response.items():
     if value != '':
         new_nagios_response[key] = value
 
@@ -447,3 +448,4 @@ elif WARNING_STATUS:
 else:
     message = '%s' % (new_nagios_response)
     nagiosExit(nagios.ok, str(message))
+
