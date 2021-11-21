@@ -369,7 +369,7 @@ for i in schedule['data']:
             while date_to_check_again <= date.today():
                 # print(type(date_to_check_again))
                 printdebug('Checking the next day: ' + str(date_to_check_again))
-                date_underscore_again = string.replace(str(date_to_check_again), '-', '_')
+                date_underscore_again = str(date_to_check_again).replace('-', '_')
 
                 if vmid_status[int(vmid)] != 'ok':
                     code_from_last_day = vmid_status[int(vmid)]
@@ -448,4 +448,3 @@ elif WARNING_STATUS:
 else:
     message = '%s' % (new_nagios_response)
     nagiosExit(nagios.ok, str(message))
-
