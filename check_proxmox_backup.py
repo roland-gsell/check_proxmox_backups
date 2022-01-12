@@ -10,6 +10,8 @@ E-Mail: roland.gsell@siedl.net
 
 2017 by Siedl Networks
 
+enhanced by: IT-Native <support@it-native.com>
+
 """
 
 from pyproxmox import prox_auth, pyproxmox
@@ -81,6 +83,44 @@ def printdebug(string):
     if options.debug:
         print(string)
 
+def parse_days(days: str) -> list:
+    # https://pve.proxmox.com/pve-docs/pve-admin-guide.html#chapter_calendar_events
+    #check if contains weekday
+    days_of_week = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    if days == '*':
+        days = ','.join(days_of_week)
+    
+    if any(ext in days for ext in days_of_week):
+        days = days.split(',')
+        if len(days) == 1:
+            days = days[0].split('..')
+            start = days_of_week.index(days[0])
+            end = days_of_week.index(days[1])
+            if end < start:
+                days = days_of_week[start : ] + days_of_week[ : end+1 ]
+            else:
+                days = days_of_week[start : end +1]
+        return(days)
+    else:
+        printdebug("Not a valid day input!")
+
+
+def parse_time(time: str) -> tuple[int,int]:
+    # https://pve.proxmox.com/pve-docs/pve-admin-guide.html#chapter_calendar_events
+    time = time.split('..')
+    if len(time) == 2:
+        print("range", time)
+    else:
+        time = time[0].split(',')
+        if len(time) == 2:
+            print("list", time)
+        else:
+            time = time[0].split(':')
+            hours = int(time[0])
+            minutes = int(time[1])
+            if 0 <= hours < 24 and 0 <= minutes < 60:
+                return (hours, minutes)
+    #.split('/')
 
 def getweekday(weekdaynumber):
     weekday = ''
@@ -208,7 +248,7 @@ backup_all = False
 
 vmid_status = {}
 for i in schedule['data']:
-    if i['enabled'] == '1':
+    if i['enabled'] == 1:
         try:
             if i['all'] == 1:
                 backup_all = True
@@ -222,7 +262,7 @@ for i in schedule['data']:
                 vmid_status[int(vmid)] = 'nochk'
 
 for i in schedule['data']:
-    if i['enabled'] == '1':
+    if i['enabled'] == 1:
         try:
             if i['all'] == 1:
                 try:
@@ -244,78 +284,168 @@ for i in schedule['data']:
     weekday = getweekday(weekdaynumber)
     printdebug("------------")
     printdebug("Storage         : " + i['storage'])
-    printdebug("Weekdays        : " + i['dow'])
-    starttimetoday = datetime(datetimetoday.year,
-                              datetimetoday.month,
-                              datetimetoday.day,
-                              int(i['starttime'][:2]),
-                              int(i['starttime'][3:]))
-    now = datetime(datetimetoday.year,
-                   datetimetoday.month,
-                   datetimetoday.day,
-                   datetimetoday.hour,
-                   datetimetoday.minute)
-    printdebug("Start time      : " + str(i['starttime']))
-    printdebug("Now             : " + str(now))
-    if now < starttimetoday:
-        printdebug("Start time not reached today - going back one day")
-        if weekdaynumber == 0:
-            weekdaynumber = 6
-        else:
-            weekdaynumber -= 1
-        weekday = getweekday(weekdaynumber)
-        date_to_check = date.today() - timedelta(days=1)
-    else:
-        printdebug("Start time reached today")
-        date_to_check = date.today()
-
-    try:
-        printdebug("VM-IDs          : " + i['vmid'])
-    except Exception:
-        pass
-    days = i['dow'].split(",")
-    nrdays = []
-    for day in days:
-        if day == 'mon':
-            backup_weekdaynumber = 0
-        elif day == 'tue':
-            backup_weekdaynumber = 1
-        elif day == 'wed':
-            backup_weekdaynumber = 2
-        elif day == 'thu':
-            backup_weekdaynumber = 3
-        elif day == 'fri':
-            backup_weekdaynumber = 4
-        elif day == 'sat':
-            backup_weekdaynumber = 5
-        elif day == 'sun':
-            backup_weekdaynumber = 6
-        nrdays.append(backup_weekdaynumber)
-    vmids = []
-
-    # Debug: Add a non-existent VM
-    # vmids.append(200)
-
-    printdebug("Days of backup  : " + str(nrdays))
-    if weekday in i['dow']:
-        printdebug("Weekday found: " + weekday)
-        printdebug("Date to check:     " + str(date_to_check))
-    else:
-        printdebug("Today no backup should be done.")
-        days_to_go_back = 1
-        for _ in range(7):
-            # going back up to 7 times to find the first matching day to do the backup
-            days_to_go_back += 1
-            weekdaynumber -= 1
-            if weekdaynumber < 0:
+    #check if dow or schedule is there
+    if hasattr(i, 'dow') and hasattr(i, 'starttime'):
+        printdebug('Weekdays        : ' + i['dow'])
+            
+        starttimetoday = datetime(datetimetoday.year,
+                                datetimetoday.month,
+                                datetimetoday.day,
+                                int(i['starttime'][:2]),
+                                int(i['starttime'][3:]))
+        now = datetime(datetimetoday.year,
+                    datetimetoday.month,
+                    datetimetoday.day,
+                    datetimetoday.hour,
+                    datetimetoday.minute)
+        printdebug("Start time      : " + str(i['starttime']))
+        printdebug("Now             : " + str(now))
+        if now < starttimetoday:
+            printdebug("Start time not reached today - going back one day")
+            if weekdaynumber == 0:
                 weekdaynumber = 6
+            else:
+                weekdaynumber -= 1
             weekday = getweekday(weekdaynumber)
-            if weekday in i['dow']:
-                printdebug("Weekday found: " + weekday)
-                date_to_check = date.today() - timedelta(days=days_to_go_back)
-                printdebug("Days to go back:  " + str(days_to_go_back))
-                printdebug("Date to check:     " + str(date_to_check))
-                break
+            date_to_check = date.today() - timedelta(days=1)
+        else:
+            printdebug("Start time reached today")
+            date_to_check = date.today()
+
+        try:
+            printdebug("VM-IDs          : " + i['vmid'])
+        except Exception:
+            pass
+        days = i['dow'].split(",")
+        nrdays = []
+        for day in days:
+            if day == 'mon':
+                backup_weekdaynumber = 0
+            elif day == 'tue':
+                backup_weekdaynumber = 1
+            elif day == 'wed':
+                backup_weekdaynumber = 2
+            elif day == 'thu':
+                backup_weekdaynumber = 3
+            elif day == 'fri':
+                backup_weekdaynumber = 4
+            elif day == 'sat':
+                backup_weekdaynumber = 5
+            elif day == 'sun':
+                backup_weekdaynumber = 6
+            nrdays.append(backup_weekdaynumber)
+        vmids = []
+
+        # Debug: Add a non-existent VM
+        # vmids.append(200)
+
+        printdebug("Days of backup  : " + str(nrdays))
+        if weekday in i['dow']:
+            printdebug("Weekday found: " + weekday)
+            printdebug("Date to check:     " + str(date_to_check))
+        else:
+            printdebug("Today no backup should be done.")
+            days_to_go_back = 0
+            for _ in range(7):
+                # going back up to 7 times to find the first matching day to do the backup
+                days_to_go_back += 1
+                weekdaynumber -= 1
+                if weekdaynumber < 0:
+                    weekdaynumber = 6
+                weekday = getweekday(weekdaynumber) #TODO better solution?
+                if weekday in i['dow']:
+                    printdebug("Weekday found: " + weekday)
+                    date_to_check = date.today() - timedelta(days=days_to_go_back)
+                    printdebug("Days to go back:  " + str(days_to_go_back))
+                    printdebug("Date to check:     " + str(date_to_check))
+                    break
+
+    else:
+        printdebug('PVE version >=7 backup definition')
+        sched = i['schedule']
+        sched = sched.split(' ')
+        if len(sched) == 2:
+            days = sched[0]
+            days = parse_days(days)
+            time = sched[1]
+            time = parse_time(time)
+        else:
+            sched = sched[0]
+            days = parse_days(sched)
+            if days is None:
+                days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                time = parse_time(sched)
+
+        starttimetoday = datetime(datetimetoday.year,
+                                    datetimetoday.month,
+                                    datetimetoday.day,
+                                    int(time[0]),
+                                    int(time[1]))
+        now = datetime(datetimetoday.year,
+                    datetimetoday.month,
+                    datetimetoday.day,
+                    datetimetoday.hour,
+                    datetimetoday.minute)
+        printdebug("Start time      : " + str(starttimetoday))
+        printdebug("Now             : " + str(now))
+        if now < starttimetoday:
+            printdebug("Start time not reached today - going back one day")
+            if weekdaynumber == 0:
+                weekdaynumber = 6
+            else:
+                weekdaynumber -= 1
+            weekday = getweekday(weekdaynumber)
+            date_to_check = date.today() - timedelta(days=1)
+        else:
+            printdebug("Start time reached today")
+            date_to_check = date.today()
+
+        try:
+            printdebug("VM-IDs          : " + i['vmid'])
+        except Exception:
+            pass
+        nrdays = []
+        for day in days:
+            if day == 'mon':
+                backup_weekdaynumber = 0
+            elif day == 'tue':
+                backup_weekdaynumber = 1
+            elif day == 'wed':
+                backup_weekdaynumber = 2
+            elif day == 'thu':
+                backup_weekdaynumber = 3
+            elif day == 'fri':
+                backup_weekdaynumber = 4
+            elif day == 'sat':
+                backup_weekdaynumber = 5
+            elif day == 'sun':
+                backup_weekdaynumber = 6
+            nrdays.append(backup_weekdaynumber)
+        vmids = []
+
+        #Debug: Add a non-existent VM
+        #vmids.append(200)
+
+        printdebug("Days of backup  : " + str(nrdays))
+        if weekday in days:
+            printdebug("Weekday found: " + weekday)
+            printdebug("Date to check:     " + str(date_to_check))
+        else:
+            printdebug("Today no backup should be done.")
+            days_to_go_back = 0
+            for _ in range(7):
+                # going back up to 7 times to find the first matching day to do the backup
+                days_to_go_back += 1
+                weekdaynumber -= 1
+                if weekdaynumber < 0:
+                    weekdaynumber = 6
+                weekday = getweekday(weekdaynumber) #TODO better solution?
+                if weekday in days:
+                    printdebug("Weekday found: " + weekday)
+                    date_to_check = date.today() - timedelta(days=days_to_go_back)
+                    printdebug("Days to go back:  " + str(days_to_go_back))
+                    printdebug("Date to check:     " + str(date_to_check))
+                    break
 
     storage = prox.getStorageConfig(i['storage'])
     printdebug("Storage-Config: " + str(storage))
@@ -385,7 +515,7 @@ for i in schedule['data']:
                     vmid_status[int(vmid)] = 'nolog'
                     printdebug("Error - no log file found: " + str(vmid))
 
-    printdebug("Storage-Path: " + storage['data']['path'])
+    printdebug("Storage-Path: " + path)
     printdebug("------------")
 # print " "
 
